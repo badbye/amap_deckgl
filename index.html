@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+  <title>英文、中英文地图</title>
+  <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css" />
+  <style>
+    html,body {
+        width: 100%; height: 100%;margin: 0;padding: 0;position: relative
+    }
+
+    #amap {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top:0;
+      left: 0;
+      z-index: 1;
+      opacity: 1;
+    }
+
+    .input-card{
+        z-index:100;
+    }
+
+    #map-styles .input-item {
+      height: 2rem;
+    }
+
+    #map-styles .input-item span{
+      display: inline-block;
+      width: 4rem;
+    }
+
+    #map-styles .input-item .input-text {
+      color: #0288d1;
+      margin-left: 1rem;
+      margin-right: 0rem;
+      width: 6rem;
+    }
+  </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+</head>
+
+<body>
+  <div id="amap"></div>
+  <div class="input-card" style="width:16rem">
+    <h4>官方默认自定义样式</h4>
+    <div id="map-styles">
+      <div class="input-item"><input type='radio' name='mapStyle' value='normal' checked><span>标准</span><span class="input-text">normal</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='dark'><span>幻影黑</span><span class="input-text">dark</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='light'><span>月光银</span><span class="input-text">light</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='whitesmoke'><span>远山黛</span><span class="input-text">whitesmoke</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='fresh'><span>草色青</span><span class="input-text">fresh</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='grey'><span>雅士灰</span><span class="input-text">grey</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='graffiti'><span>涂鸦</span><span class="input-text">graffiti</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='macaron'><span>马卡龙</span><span class="input-text">macaron</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='blue'><span>靛青蓝</span><span class="input-text">blue</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='darkblue'><span>极夜蓝</span><span class="input-text">darkblue</span></div>
+      <div class="input-item"><input type='radio' name='mapStyle' value='wine'><span>酱籽</span><span class="input-text">wine</span></div>
+    </div>
+  </div>
+  <canvas id="deck-canvas"></canvas>
+
+
+  <!-- 高德地图资源 -->
+  <script src="https://cache.amap.com/lbs/static/es5.min.js"></script>
+  <script src="https://webapi.amap.com/maps?v=2.0&key=a14a5566ac3ce74de176d2df40909b13&plugin=AMap.ControlBar,AMap.ToolBar"></script>
+
+  <!-- 经纬度转化函数  -->
+  <script>
+    const {PI} = Math
+    // 球体长半径
+    const SPHERE_RADIUS = 6378245.0
+    // 扁率
+    const FLATNESS = 0.00669342162296594323
+    const ER = 20037508.342789
+
+    function transformLat(inputLng, inputLat) {
+        const lat = +inputLat
+        const lng = +inputLng
+        let ret = -100.0 + 2.0 * lng + 3.0 * lat + 0.2 * lat * lat + 0.1 * lng * lat + 0.2 * Math.sqrt(Math.abs(lng))
+        ret += (20.0 * Math.sin(6.0 * lng * PI) + 20.0 * Math.sin(2.0 * lng * PI)) * 2.0 / 3.0
+        ret += (20.0 * Math.sin(lat * PI) + 40.0 * Math.sin(lat / 3.0 * PI)) * 2.0 / 3.0
+        ret += (160.0 * Math.sin(lat / 12.0 * PI) + 320 * Math.sin(lat * PI / 30.0)) * 2.0 / 3.0
+        return ret
+    }
+
+    function transformLng(inputLng, inputLat) {
+        const lat = +inputLat
+        const lng = +inputLng
+        let ret = 300.0 + lng + 2.0 * lat + 0.1 * lng * lng + 0.1 * lng * lat + 0.1 * Math.sqrt(Math.abs(lng))
+        ret += (20.0 * Math.sin(6.0 * lng * PI) + 20.0 * Math.sin(2.0 * lng * PI)) * 2.0 / 3.0
+        ret += (20.0 * Math.sin(lng * PI) + 40.0 * Math.sin(lng / 3.0 * PI)) * 2.0 / 3.0
+        ret += (150.0 * Math.sin(lng / 12.0 * PI) + 300.0 * Math.sin(lng / 30.0 * PI)) * 2.0 / 3.0
+        return ret
+    }
+
+    /**
+     * 判断是否在国内，不在国内则不做偏移
+     * @param lng
+     * @param lat
+     * @returns {boolean}
+     */
+    function outOfChina(inputLng, inputLat) {
+        const lat = +inputLat
+        const lng = +inputLng
+        // 纬度 3.86~53.55, 经度 73.66~135.05
+        return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55)
+    }
+
+
+    /**
+     * wgs84 转 gcj02
+     * 离线转换
+     * @param inputLng
+     * @param inputLat
+     * @returns {number[]}
+     */
+    function wgs84ToGcj02(inputLng, inputLat) {
+        const lat = +inputLat
+        const lng = +inputLng
+        if (outOfChina(lng, lat)) {
+            return [lng, lat]
+        } else {
+            let dLat = transformLat(lng - 105.0, lat - 35.0)
+            let dLng = transformLng(lng - 105.0, lat - 35.0)
+            const radLat = lat / 180.0 * PI
+            let magic = Math.sin(radLat)
+            magic = 1 - FLATNESS * magic * magic
+            const sqrtMagic = Math.sqrt(magic)
+            dLat = (dLat * 180.0) / ((SPHERE_RADIUS * (1 - FLATNESS)) / (magic * sqrtMagic) * PI)
+            dLng = (dLng * 180.0) / (SPHERE_RADIUS / sqrtMagic * Math.cos(radLat) * PI)
+            const mgLat = lat + dLat
+            const mgLng = lng + dLng
+            return [mgLng, mgLat]
+        }
+    }
+  </script>
+
+  <!-- 初始化地图 -->
+  <script>
+    if(1) {
+  var center = [51.47, 0.45] // [116.397428, 39.90923]
+  var zoom = 4 //15
+  //   高德
+  var layer = new AMap.createDefaultLayer({
+        zooms:[3, 20],    //可见级别
+        visible:true,    //是否可见
+        opacity: 1,       //透明度
+        zIndex:0         //叠加层级
+  })
+
+    var amap = new AMap.Map('amap', {
+        viewMode:'3D',
+        rotateEnable:true,
+        pitchEnable:true,
+      resizeEnable: true, //是否监控地图容器尺寸变化
+    //   mapStyle: "amap://styles/normal",
+      zoom: zoom + 1,
+      center: center,
+      layers: [layer],
+    //   immediately: true,
+    });
+
+var controlBar = new AMap.ControlBar({
+    position:{
+      right:'10px',
+      top:'10px'
+    }
+  });
+  controlBar.addTo(amap);
+  
+  var toolBar = new AMap.ToolBar({
+    position:{
+      right:'40px',
+      top:'110px'
+    }
+  });
+  toolBar.addTo(amap);
+
+    //绑定radio点击事件
+    var radios = document.querySelectorAll("#map-styles input");
+    radios.forEach(function(ratio) {
+      ratio.onclick = setMapStyle;
+    });
+
+    function setMapStyle() {
+      var styleName = "amap://styles/" + this.value;
+      amap.setMapStyle(styleName);
+    }
+}
+  </script>
+ <script src='app.js'></script>
+</body>
+
+</html>
