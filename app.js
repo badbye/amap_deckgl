@@ -56,7 +56,7 @@ if (1) {
     // 创建一个自定义图层
     var customLayer = new AMap.CustomLayer(canvas, {
       zIndex: 12,
-      // alwaysRender: false,
+      alwaysRender: true,
       zooms: [0, 20] // 设置可见级别，[最小级别，最大级别]
     });
     var onRender = function() {
